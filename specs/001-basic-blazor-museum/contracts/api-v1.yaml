@@ -1,0 +1,377 @@
+openapi: 3.0.3
+info:
+  title: Blazor Museum API
+  description: RESTful API for the Blazor Museum application
+  version: 1.0.0
+  contact:
+    name: Development Team
+    email: dev@blazormuseum.com
+
+servers:
+  - url: https://localhost:7001/api/v1
+    description: Development server
+  - url: https://blazormuseum.com/api/v1
+    description: Production server
+
+security:
+  - BearerAuth: []
+
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      description: Returns the health status of the API and its dependencies
+      tags:
+        - System
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheckResponse'
+        '503':
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /auth/login:
+    post:
+      summary: User authentication
+      description: Authenticate user with email and password, returns JWT token
+      tags:
+        - Authentication
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '401':
+          description: Authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /auth/validate:
+    post:
+      summary: Token validation
+      description: Validate a JWT token and return user information
+      tags:
+        - Authentication
+      responses:
+        '200':
+          description: Token is valid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenValidationResult'
+        '401':
+          description: Token is invalid or expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /users/profile:
+    get:
+      summary: Get current user profile
+      description: Returns the profile information for the authenticated user
+      tags:
+        - Users
+      responses:
+        '200':
+          description: User profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserInfo'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /admin/users:
+    get:
+      summary: List all users (Admin only)
+      description: Returns a list of all users in the system
+      tags:
+        - Administration
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          description: Number of items per page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Users retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserInfo'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: Insufficient permissions (MuseumAdmin role required)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /api-info:
+    get:
+      summary: API version information
+      description: Returns information about supported API versions
+      tags:
+        - System
+      security: []
+      responses:
+        '200':
+          description: API version information
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApiVersionInfo'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authentication
+
+  schemas:
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: User's email address
+          example: "user@example.com"
+        password:
+          type: string
+          minLength: 8
+          description: User's password (minimum 8 characters)
+          example: "securePassword123"
+
+    LoginResponse:
+      type: object
+      required:
+        - token
+        - expires
+        - user
+      properties:
+        token:
+          type: string
+          description: JWT authentication token
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        expires:
+          type: string
+          format: date-time
+          description: Token expiration date and time
+          example: "2025-10-31T15:30:00Z"
+        user:
+          $ref: '#/components/schemas/UserInfo'
+
+    UserInfo:
+      type: object
+      required:
+        - id
+        - email
+        - name
+        - roles
+        - lastLogin
+      properties:
+        id:
+          type: string
+          description: Unique user identifier
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        email:
+          type: string
+          format: email
+          description: User's email address
+          example: "user@example.com"
+        name:
+          type: string
+          maxLength: 100
+          description: User's display name
+          example: "John Doe"
+        roles:
+          type: array
+          items:
+            type: string
+            enum: ["MuseumAdmin", "MuseumUser"]
+          description: User's assigned roles
+          example: ["MuseumUser"]
+        lastLogin:
+          type: string
+          format: date-time
+          description: Last login timestamp
+          example: "2025-10-31T14:30:00Z"
+
+    TokenValidationResult:
+      type: object
+      required:
+        - isValid
+      properties:
+        isValid:
+          type: boolean
+          description: Whether the token is valid
+          example: true
+        userId:
+          type: string
+          description: User ID if token is valid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        roles:
+          type: array
+          items:
+            type: string
+          description: User roles if token is valid
+          example: ["MuseumUser"]
+        errorMessage:
+          type: string
+          description: Error message if token is invalid
+          example: "Token has expired"
+
+    ApiError:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: Error code for programmatic handling
+          example: "AUTHENTICATION_FAILED"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Invalid email or password"
+        details:
+          type: string
+          description: Additional error details
+          example: "The provided credentials do not match our records"
+        traceId:
+          type: string
+          description: Request trace ID for debugging
+          example: "0HMV4M:00000001"
+
+    HealthCheckResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+        - version
+        - dependencies
+      properties:
+        status:
+          type: string
+          enum: ["Healthy", "Degraded", "Unhealthy"]
+          description: Overall health status
+          example: "Healthy"
+        timestamp:
+          type: string
+          format: date-time
+          description: Health check timestamp
+          example: "2025-10-31T14:30:00Z"
+        version:
+          type: string
+          description: API version
+          example: "1.0.0"
+        dependencies:
+          type: object
+          additionalProperties:
+            type: string
+          description: Status of external dependencies
+          example:
+            database: "Healthy"
+            logging: "Healthy"
+
+    ApiVersionInfo:
+      type: object
+      required:
+        - version
+        - description
+        - isDeprecated
+      properties:
+        version:
+          type: integer
+          description: API version number
+          example: 1
+        description:
+          type: string
+          description: Version description
+          example: "Initial API version with authentication and user management"
+        isDeprecated:
+          type: boolean
+          description: Whether this version is deprecated
+          example: false
+        deprecationDate:
+          type: string
+          format: date-time
+          description: Deprecation date if applicable
+          example: "2025-12-31T00:00:00Z"
+
+tags:
+  - name: System
+    description: System-level endpoints (health, version info)
+  - name: Authentication
+    description: User authentication and authorization
+  - name: Users
+    description: User profile management
+  - name: Administration
+    description: Administrative functions (requires MuseumAdmin role)
